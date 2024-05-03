@@ -38,9 +38,9 @@ WORKDIR /bbr
 COPY debian_config/boot/config-6.1.0-12-cloud-amd64 .config
 
 # Define environment variables
-ENV BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/-/+/g')
-ENV SHA1=$(git rev-parse --short HEAD)
-ENV LOCALVERSION="+${BRANCH}+${SHA1}+GCE"
+# ENV BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/-/+/g')
+# ENV SHA1=$(git rev-parse --short HEAD)
+ENV LOCALVERSION="+6.1.0-12-cloud-amd64+GCE"
 ENV GCE_PKG_DIR=${PWD}/gce/${LOCALVERSION}/pkg
 ENV GCE_INSTALL_DIR=${PWD}/gce/${LOCALVERSION}/install
 ENV GCE_BUILD_DIR=${PWD}/gce/${LOCALVERSION}/build
