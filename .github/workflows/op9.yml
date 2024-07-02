@@ -1,0 +1,27 @@
+name: Compile Linux Kernel from op9 repository
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Build Docker image
+        run: docker build -t kernel-builder .
+
+      - name: Run Docker container to build kernel
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/output \
+            kernel-builder
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: kernel-artifact
+          path: ${{ github.workspace }}/kernel.tar.gz
