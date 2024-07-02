@@ -1,42 +1,48 @@
-# Stage 1: debian base with source list update
-FROM debian:12.1 AS deb-src
-COPY <<"EOF" /etc/apt/sources.list
-deb http://deb.debian.org/debian bookworm main
-deb-src http://deb.debian.org/debian bookworm main
+# Stage 1: Base image with Debian Bullseye and necessary tools
+FROM debian:bullseye AS base
 
-deb http://deb.debian.org/debian-security/ bookworm-security main
-deb-src http://deb.debian.org/debian-security/ bookworm-security main
+# Install essential packages
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    wget \
+    bc \
+    libncurses5-dev \
+    flex \
+    bison \
+    libssl-dev \
+    ccache
 
-deb http://deb.debian.org/debian bookworm-updates main
-deb-src http://deb.debian.org/debian bookworm-updates main
-EOF
+# Stage 2: Download kernel source
+FROM base AS download-kernel
 
-# Stage 2: Install build dependencies
-FROM deb-src AS install-dependency
-RUN <<"EOF"
-apt-get update
-apt-get install build-essential wget git -y
-apt-get build-dep linux -y
-EOF
+# Set up environment variables
+ENV KERNEL_VERSION=5.14  # Replace with your kernel version
+ENV KERNEL_SOURCE=/kernel_source
 
-# Stage 3: Download kernel config (optional if not needed)
+# Create directory for kernel source
+RUN mkdir -p $KERNEL_SOURCE
+WORKDIR $KERNEL_SOURCE
 
-# Stage 4: Clone kernel source
-FROM install-dependency AS download-kernel
-RUN <<"EOF"
-cd /
-git clone --single-branch --branch blu_spark-14-custom --depth 1 https://github.com/engstk/op9.git kernel_source
-EOF
+# Clone kernel source (replace with your repository)
+RUN git clone https://github.com/engstk/op9.git -b blu_spark-14-custom .
 
-# Stage 5: Build and package the kernel (final stage)
-FROM download-kernel as builder
-RUN <<"EOF"
-cd /kernel_source
-cp arch/arm64/configs/blu_spark_defconfig .config
-make olddefconfig
-make -j`nproc`
-make modules
-make modules_install
-mkdir -p /kernel_build
-tar -czvf /kernel.tar.gz -C /kernel_source/arch/arm64/boot/ Image.gz-dtb
-EOF
+# Stage 3: Build the kernel
+FROM download-kernel AS builder
+
+# Configure and build kernel
+RUN cp arch/arm64/configs/blu_spark_defconfig .config && \
+    make olddefconfig && \
+    make -j$(nproc) && \
+    make modules && \
+    make modules_install
+
+# Create directory for kernel build artifacts
+RUN mkdir -p /kernel_build
+
+# Package kernel into tarball
+RUN tar -czvf /kernel.tar.gz -C $KERNEL_SOURCE/arch/arm64/boot/ Image.gz-dtb
+
+# Stage 4: Final image for artifact export
+FROM scratch AS export
+COPY --from=builder /kernel.tar.gz /kernel.tar.gz
