@@ -11,21 +11,22 @@ RUN apt-get update && apt-get install -y \
     flex \
     bison \
     libssl-dev \
-    ccache
+    ccache \
+    libelf-dev
 
 # Stage 2: Download kernel source
 FROM base AS download-kernel
 
 # Set up environment variables
-ENV KERNEL_VERSION=5.4.274
+ENV KERNEL_VERSION=5.14
 ENV KERNEL_SOURCE=/kernel_source
 
 # Create directory for kernel source
 RUN mkdir -p $KERNEL_SOURCE
 WORKDIR $KERNEL_SOURCE
 
-# Clone LineageOS kernel source for OnePlus SM8350 (Snapdragon 888) for LineageOS 21
-RUN git clone https://github.com/LineageOS/android_kernel_oneplus_sm8350.git -b lineage-21 .
+# Clone LineageOS kernel source for OnePlus SM8350 (Snapdragon 888) for LineageOS 21 and fetch only the last commit
+RUN git clone --depth 1 https://github.com/LineageOS/android_kernel_oneplus_sm8350.git -b lineage-21 .
 
 # Stage 3: Build the kernel
 FROM download-kernel AS builder
