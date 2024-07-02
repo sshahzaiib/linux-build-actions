@@ -17,21 +17,21 @@ RUN apt-get update && apt-get install -y \
 FROM base AS download-kernel
 
 # Set up environment variables
-ENV KERNEL_VERSION=5.14  # Replace with your kernel version
+ENV KERNEL_VERSION=5.4.274
 ENV KERNEL_SOURCE=/kernel_source
 
 # Create directory for kernel source
 RUN mkdir -p $KERNEL_SOURCE
 WORKDIR $KERNEL_SOURCE
 
-# Clone kernel source (replace with your repository)
-RUN git clone https://github.com/engstk/op9.git -b blu_spark-14-custom .
+# Clone LineageOS kernel source for OnePlus SM8350 (Snapdragon 888) for LineageOS 21
+RUN git clone https://github.com/LineageOS/android_kernel_oneplus_sm8350.git -b lineage-21 .
 
 # Stage 3: Build the kernel
 FROM download-kernel AS builder
 
 # Configure and build kernel
-RUN cp arch/arm64/configs/blu_spark_defconfig .config && \
+RUN cp arch/arm64/configs/defconfig .config && \
     make olddefconfig && \
     make -j$(nproc) && \
     make modules && \
