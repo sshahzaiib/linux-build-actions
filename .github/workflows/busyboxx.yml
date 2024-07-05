@@ -1,0 +1,43 @@
+name: Kernel Build
+
+on:
+  push:
+    branches:
+      - busyboxx
+  pull_request:
+    branches:
+      - busyboxx
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build Docker Image
+      run: |
+        docker build -t kernel-builder .
+
+    - name: Run Kernel Build
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace kernel-builder bash -c "
+          cp /bzImage /workspace/kernel_image &&
+          cp /initrd.img /workspace/initrd.img"
+    
+    - name: Upload Kernel Image
+      uses: actions/upload-artifact@v2
+      with:
+        name: kernel_image
+        path: kernel_image
+
+    - name: Upload Initrd Image
+      uses: actions/upload-artifact@v2
+      with:
+        name: initrd_img
+        path: initrd.img
