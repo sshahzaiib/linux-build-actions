@@ -18,10 +18,20 @@ RUN apt-get update && \
     libncurses5-dev \
     libelf-dev \
     libssl-dev \
-    musl-tools
+    musl-tools \
+    musl-dev
 
 # Create and switch to the /src directory
 WORKDIR /src
+
+# Download and compile Busybox
+RUN wget https://www.busybox.net/downloads/busybox-$BUSYBOX_VERSION.tar.bz2 && \
+    tar -xf busybox-$BUSYBOX_VERSION.tar.bz2 && \
+    cd busybox-$BUSYBOX_VERSION && \
+    make defconfig && \
+    sed 's/^.*CONFIG_STATIC[^_].*$/CONFIG_STATIC=y/g' -i .config && \
+    cat .config | grep CONFIG_STATIC && \
+    make CC=musl-gcc -j$(nproc) busybox
 
 # Download and extract the Linux kernel
 RUN KERNEL_MAJOR=$(echo $KERNEL_VERSION | cut -d '.' -f 1) && \
@@ -30,15 +40,6 @@ RUN KERNEL_MAJOR=$(echo $KERNEL_VERSION | cut -d '.' -f 1) && \
     cd linux-$KERNEL_VERSION && \
     make defconfig && \
     make -j$(nproc) && \
-    cd ..
-
-# Download and compile Busybox
-RUN wget https://www.busybox.net/downloads/busybox-$BUSYBOX_VERSION.tar.bz2 && \
-    tar -xf busybox-$BUSYBOX_VERSION.tar.bz2 && \
-    cd busybox-$BUSYBOX_VERSION && \
-    make defconfig && \
-    sed 's/^.*CONFIG_STATIC[^_].*$/CONFIG_STATIC=y/g' -i .config && \
-    make CC=musl-gcc -j$(nproc) busybox && \
     cd ..
 
 # Copy the compiled kernel image to the root
