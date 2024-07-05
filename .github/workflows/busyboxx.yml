@@ -1,12 +1,6 @@
 name: busyboxx
 
 on:
-  push:
-    branches:
-      - busyboxx
-  pull_request:
-    branches:
-      - busyboxx
   workflow_dispatch:
 
 jobs:
