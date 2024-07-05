@@ -1,4 +1,4 @@
-name: Kernel Build
+name: busyboxx
 
 on:
   push:
