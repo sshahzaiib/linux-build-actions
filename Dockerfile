@@ -24,7 +24,7 @@ RUN apt-get update && \
 WORKDIR /src
 
 # Download and extract the Linux kernel
-RUN KERNEL_MAJOR=$(echo $KERNEL_VERSION | sed 's/\([0-9]*\)[^0-9]*/\1/') && \
+RUN KERNEL_MAJOR=$(echo $KERNEL_VERSION | cut -d '.' -f 1) && \
     wget https://mirrors.edge.kernel.org/pub/linux/kernel/v$KERNEL_MAJOR.x/linux-$KERNEL_VERSION.tar.xz && \
     tar -xf linux-$KERNEL_VERSION.tar.xz && \
     cd linux-$KERNEL_VERSION && \
