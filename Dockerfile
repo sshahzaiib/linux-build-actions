@@ -1,69 +1,69 @@
-# Stage 1: debian base with source list update
-FROM debian:12.1 AS deb-src
-COPY <<"EOF" /etc/apt/sources.list
-deb http://deb.debian.org/debian bookworm main
-deb-src http://deb.debian.org/debian bookworm main
+# Use an official Ubuntu as a parent image
+FROM ubuntu:22.04
 
-deb http://deb.debian.org/debian-security/ bookworm-security main
-deb-src http://deb.debian.org/debian-security/ bookworm-security main
+# Set environment variables
+ENV KERNEL_VERSION=5.15.6
+ENV BUSYBOX_VERSION=1.34.1
 
-deb http://deb.debian.org/debian bookworm-updates main
-deb-src http://deb.debian.org/debian bookworm-updates main
-EOF
+# Install necessary packages
+RUN apt-get update && \
+    apt-get install -y \
+    build-essential \
+    wget \
+    bc \
+    kmod \
+    cpio \
+    flex \
+    bison \
+    libncurses5-dev \
+    libelf-dev \
+    libssl-dev \
+    musl-tools
 
+# Create and switch to the /src directory
+WORKDIR /src
 
-# Stage 2: Install build dependencies
-FROM deb-src AS install-dependency
-RUN <<"EOF"
-apt-get update
-apt-get install build-essential wget git -y
-apt-get build-dep linux -y
-EOF
+# Download and extract the Linux kernel
+RUN KERNEL_MAJOR=$(echo $KERNEL_VERSION | sed 's/\([0-9]*\)[^0-9]*/\1/') && \
+    wget https://mirrors.edge.kernel.org/pub/linux/kernel/v$KERNEL_MAJOR.x/linux-$KERNEL_VERSION.tar.xz && \
+    tar -xf linux-$KERNEL_VERSION.tar.xz && \
+    cd linux-$KERNEL_VERSION && \
+    make defconfig && \
+    make -j$(nproc) && \
+    cd ..
 
-# Stage 3: Download kernel config
-FROM install-dependency AS download-boot
-RUN <<"EOF"
-cd /
-mkdir debian_config
-cd debian_config
-wget http://security.debian.org/debian-security/pool/updates/main/l/linux-signed-amd64/linux-image-6.1.0-12-cloud-amd64_6.1.52-1_amd64.deb -q -O kernel.deb
-ar -x kernel.deb
-tar xf data.tar.xz
-EOF
+# Download and compile Busybox
+RUN wget https://www.busybox.net/downloads/busybox-$BUSYBOX_VERSION.tar.bz2 && \
+    tar -xf busybox-$BUSYBOX_VERSION.tar.bz2 && \
+    cd busybox-$BUSYBOX_VERSION && \
+    make defconfig && \
+    sed 's/^.*CONFIG_STATIC[^_].*$/CONFIG_STATIC=y/g' -i .config && \
+    make CC=musl-gcc -j$(nproc) busybox && \
+    cd ..
 
-# Stage 4: Clone BBR source
-FROM download-boot as download-bbr
-RUN <<"EOF"
-cd /
-git clone https://github.com/google/bbr.git -b v3
-EOF
+# Copy the compiled kernel image to the root
+RUN cp linux-$KERNEL_VERSION/arch/x86_64/boot/bzImage /bzImage
 
-# Stage 5: Build and package the kernel (final stage)
-FROM download-bbr as builder
-RUN <<"EOF"
-cd /bbr
-cp /debian_config/boot/config-6.1.0-12-cloud-amd64 .config
-export BRANCH=`git rev-parse --abbrev-ref HEAD | sed s/-/+/g`
-export SHA1=`git rev-parse --short HEAD`
-export LOCALVERSION=+${BRANCH}+${SHA1}+GCE
-export GCE_PKG_DIR=${PWD}/gce/${LOCALVERSION}/pkg
-export GCE_INSTALL_DIR=${PWD}/gce/${LOCALVERSION}/install
-export GCE_BUILD_DIR=${PWD}/gce/${LOCALVERSION}/build
-export KERNEL_PKG=kernel-${LOCALVERSION}.tar.gz2
-export MAKE_OPTS="-j`nproc` \
-           LOCALVERSION=${LOCALVERSION} \
-           EXTRAVERSION="" \
-           INSTALL_PATH=${GCE_INSTALL_DIR}/boot \
-           INSTALL_MOD_PATH=${GCE_INSTALL_DIR}"
-mkdir -p ${GCE_BUILD_DIR}
-mkdir -p ${GCE_INSTALL_DIR}/boot
-mkdir -p ${GCE_PKG_DIR}
-make olddefconfig
-make ${MAKE_OPTS} prepare
-make ${MAKE_OPTS}
-make ${MAKE_OPTS} modules
-make ${MAKE_OPTS} install
-make ${MAKE_OPTS} modules_install
-cd ${GCE_INSTALL_DIR}
-tar -cvzf /kernel.tar.gz2 boot/* lib/modules/* --owner=0 --group=0
-EOF
+# Prepare the initrd
+RUN mkdir initrd && \
+    cd initrd && \
+    mkdir -p bin dev proc sys && \
+    cp ../busybox-$BUSYBOX_VERSION/busybox bin/ && \
+    cd bin && \
+    for prog in $(./busybox --list); do ln -s /bin/busybox ./$prog; done && \
+    cd .. && \
+    echo '#!/bin/sh' > init && \
+    echo 'mount -t sysfs sysfs /sys' >> init && \
+    echo 'mount -t proc proc /proc' >> init && \
+    echo 'mount -t devtmpfs udev /dev' >> init && \
+    echo 'sysctl -w kernel.printk="2 4 1 7"' >> init && \
+    echo '/bin/sh' >> init && \
+    echo 'poweroff -f' >> init && \
+    chmod -R 777 . && \
+    find . | cpio -o -H newc > /initrd.img
+
+# Final working directory
+WORKDIR /
+
+# Define entrypoint
+ENTRYPOINT ["/bin/bash"]
