@@ -5,7 +5,7 @@ FROM ubuntu:22.04
 ENV KERNEL_VERSION=5.15.6
 ENV BUSYBOX_VERSION=1.34.1
 
-# Install necessary packages
+# Install necessary packages including Linux kernel headers
 RUN apt-get update && \
     apt-get install -y \
     build-essential \
@@ -19,7 +19,8 @@ RUN apt-get update && \
     libelf-dev \
     libssl-dev \
     musl-tools \
-    musl-dev
+    musl-dev \
+    linux-headers-$(uname -r)
 
 # Create and switch to the /src directory
 WORKDIR /src
